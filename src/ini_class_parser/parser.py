@@ -1,62 +1,13 @@
-from dataclasses import dataclass
 from typing import Dict, List, Optional, Set, Tuple, Any
 import configparser
 import csv
 from io import StringIO
 import logging
 from multiprocessing import Pool, cpu_count
+from .types import ConfigEntry, ClassInfo, ConfigParserError, MalformedEntryError
+from .cache import CacheManager
 
 logger = logging.getLogger(__name__)
-
-class ConfigParserError(Exception):
-    """Base exception for config parsing errors"""
-    pass
-
-class MalformedEntryError(ConfigParserError):
-    """Raised when an entry cannot be parsed correctly"""
-    pass
-
-@dataclass
-class ConfigEntry:
-    class_name: str
-    source: str
-    category: str
-    parent: str
-    inherits_from: str
-    is_simple_object: bool
-    num_properties: int
-    scope: int
-    model: str
-    
-    @classmethod
-    def from_csv(cls, csv_string: str) -> 'ConfigEntry':
-        """Create ConfigEntry from CSV string."""
-        reader = csv.reader([csv_string.strip('"')])
-        try:
-            row = next(reader)
-            if len(row) != 9:
-                raise MalformedEntryError(f"Expected 9 fields, got {len(row)}")
-            return cls(
-                class_name=row[0],
-                source=row[1],
-                category=row[2],
-                parent=row[3],
-                inherits_from=row[4],
-                is_simple_object=row[5].lower() == 'true',
-                num_properties=int(row[6]),
-                scope=int(row[7]),
-                model=row[8]
-            )
-        except (StopIteration, ValueError) as e:
-            raise MalformedEntryError(f"Failed to parse entry: {e}")
-
-@dataclass
-class ClassInfo:
-    name: str
-    source_file: str
-    properties: Dict[str, str]
-    parent_class: Optional[str] = None
-    inherits_from: Optional[str] = None
 
 class INIClassParser:
     def __init__(self, file_path: str, use_parallel: bool = True, max_workers: int = None):
@@ -65,10 +16,19 @@ class INIClassParser:
         self.max_workers = max_workers or max(1, cpu_count() - 1)
         self.parallel_threshold = 1000  # Increased threshold for better performance
         self.config = configparser.ConfigParser(strict=True)
+        self._cache = CacheManager()
         try:
-            if not self.config.read(file_path):
-                raise ConfigParserError(f"Could not read file: {file_path}")
-        except configparser.Error as e:
+            # Try UTF-8 first, then fallback to other encodings
+            for encoding in ['utf-8', 'utf-8-sig', 'latin1', 'cp1252']:
+                try:
+                    with open(file_path, 'r', encoding=encoding) as f:
+                        self.config.read_file(f)
+                        break
+                except UnicodeDecodeError:
+                    if encoding == 'cp1252':  # Last attempt failed
+                        raise ConfigParserError(f"Could not decode file with any supported encoding: {file_path}")
+                    continue
+        except (configparser.Error, OSError) as e:
             raise ConfigParserError(f"Error parsing config: {e}")
 
     @staticmethod
@@ -101,7 +61,12 @@ class INIClassParser:
     def get_category_entries(self, category: str) -> List[ConfigEntry]:
         if category not in self.config:
             return []
-        
+
+        # Return cached entries if available
+        cache = self._cache.get_or_create_cache(category)
+        if cache.entries:
+            return sorted(cache.entries.values(), key=lambda x: x.class_name)
+
         section = self.config[category]
         errors = []
         
@@ -129,6 +94,12 @@ class INIClassParser:
                     entries.append(entry)
                 if error:
                     errors.append(error)
+
+        # Cache the results
+        for entry in entries:
+            self._cache.add_entry(category, entry)
+            if entry.inherits_from:
+                self._cache.add_child(category, entry.inherits_from, entry.class_name)
         
         if errors:
             logger.warning(f"Errors in category {category}:\n" + "\n".join(errors))
@@ -177,8 +148,7 @@ class INIClassParser:
 
     def get_class_info(self, category: str, class_name: str) -> Optional[ClassInfo]:
         """Get information about a specific class."""
-        entries = self.get_category_entries(category)
-        entry = next((e for e in entries if e.class_name == class_name), None)
+        entry = self._cache.get_entry(category, class_name)
         if not entry:
             return None
         return ClassInfo(
@@ -205,27 +175,11 @@ class INIClassParser:
 
     def get_direct_children(self, category: str, class_name: str) -> List[str]:
         """Get immediate children of a class."""
-        entries = self.get_category_entries(category)
-        return [
-            entry.class_name
-            for entry in entries
-            if entry.inherits_from == class_name
-        ]
+        return sorted(self._cache.get_children(category, class_name))
 
     def get_all_descendants(self, category: str, class_name: str) -> Set[str]:
         """Get all descendants (children, grandchildren, etc.) of a class."""
-        result = set()
-        entries = self.get_category_entries(category)
-        
-        def add_descendants(parent: str) -> None:
-            children = [e.class_name for e in entries if e.inherits_from == parent]
-            for child in children:
-                if child not in result:
-                    result.add(child)
-                    add_descendants(child)
-        
-        add_descendants(class_name)
-        return result
+        return self._cache.compute_descendants(category, class_name)
 
 # Example usage:
 # parser = INIClassParser('/path/to/config.ini')
