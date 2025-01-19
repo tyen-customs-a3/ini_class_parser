@@ -1,7 +1,7 @@
 import pytest
 from pathlib import Path
-from src.api import ClassHierarchyAPI
-from src import ClassInfo, ConfigParserError
+from ini_class_parser.api import ClassHierarchyAPI
+from ini_class_parser import ClassInfo, ConfigParserError
 
 @pytest.fixture
 def config_path():
@@ -95,15 +95,56 @@ def test_cache_behavior(api, category, class_name, expected_type):
     assert result1 is result2  # Check if it's the same object (cached)
 
 def test_complex_inheritance_scenarios(api):
-    # Simplified to test only API-specific inheritance features
-    # Test deep inheritance chain verification
+    """Test comprehensive inheritance features"""
+    # Test inheritance tree structure
     assert api.is_descendant_of('CategoryData_CfgVehicles', 'House', 'Building')
     assert api.is_descendant_of('CategoryData_CfgVehicles', 'Building', 'Static')
     
-    # Test ancestor lookup with branches
+    # Test deep branching inheritance
     ancestor = api.find_common_ancestor(
         'CategoryData_CfgVehicles',
         'ThingEffectFeather',
         'FxExploArmor1'
     )
     assert ancestor == 'ThingEffect'
+    
+    # Test multi-level relationships
+    descendants = api.get_descendants('CategoryData_CfgVehicles', 'Land')
+    assert 'Car' in descendants
+    assert 'LandVehicle' in descendants
+    assert 'Tank' in descendants
+
+def test_case_insensitive_lookup(api):
+    """Test case-insensitive class lookups"""
+    # Test has_class with different cases
+    assert api.has_class('CategoryData_CfgVehicles', 'CAR') is True
+    assert api.has_class('CategoryData_CfgVehicles', 'car') is True
+    assert api.has_class('CategoryData_CfgVehicles', 'Car') is True
+    
+    # Test case-sensitive lookup
+    assert api.has_class('CategoryData_CfgVehicles', 'CAR', case_sensitive=True) is False
+    assert api.has_class('CategoryData_CfgVehicles', 'Car', case_sensitive=True) is True
+
+def test_case_insensitive_get_class(api):
+    """Test case-insensitive class info retrieval"""
+    # Different cases should return the same class info
+    class_info1 = api.get_class('CategoryData_CfgVehicles', 'CAR')
+    class_info2 = api.get_class('CategoryData_CfgVehicles', 'car')
+    class_info3 = api.get_class('CategoryData_CfgVehicles', 'Car')
+    
+    assert class_info1 is not None
+    assert class_info1 == class_info2 == class_info3
+    assert class_info1.name == 'Car'  # Original case is preserved
+
+def test_case_insensitive_find_category(api):
+    """Test case-insensitive category finding"""
+    # Different cases should find the same category
+    cat1 = api.find_class_category('CAR')
+    cat2 = api.find_class_category('car')
+    cat3 = api.find_class_category('Car')
+    
+    assert cat1 == cat2 == cat3 == 'CategoryData_CfgVehicles'
+    
+    # Case-sensitive lookup should only find exact match
+    assert api.find_class_category('CAR', case_sensitive=True) is None
+    assert api.find_class_category('Car', case_sensitive=True) == 'CategoryData_CfgVehicles'

@@ -1,7 +1,7 @@
 import pytest
 from pathlib import Path
 from src.api import ClassHierarchyAPI
-from src.parser import ConfigParserError
+from src.parser import INIClassParser, ConfigParserError
 
 def test_path_handling(tmp_path):
     # Create minimal valid config file
@@ -24,3 +24,18 @@ def test_missing_file_handling(tmp_path):
     nonexistent = tmp_path / "nonexistent.ini"
     with pytest.raises(ConfigParserError):
         ClassHierarchyAPI(nonexistent)
+
+def test_relative_path_handling(tmp_path):
+    """Test handling of relative paths"""
+    config = tmp_path / "config.ini"
+    config.write_text("""
+[CategoryData_Test]
+header="ClassName,Source,Category,Parent,InheritsFrom,IsSimpleObject,NumProperties,Scope,Model"
+test="Test,Source,Cat,Parent,,false,10,1,model"
+""")
+    
+    # Test with relative path
+    rel_path = config.relative_to(tmp_path)
+    with tmp_path.as_cwd():
+        parser = INIClassParser(str(rel_path))
+        assert parser.get_categories() == ['CategoryData_Test']
