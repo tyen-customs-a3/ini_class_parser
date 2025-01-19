@@ -1,6 +1,6 @@
 from typing import Dict, List, Optional, Set
 from pathlib import Path
-from .ini_class_parser import INIClassParser, ClassInfo
+from .src import INIClassParser, ClassInfo
 
 class ClassHierarchyAPI:
     """

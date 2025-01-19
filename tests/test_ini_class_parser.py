@@ -1,5 +1,5 @@
 import pytest
-from ini_class_parser import INIClassParser, ConfigEntry, ConfigParserError, MalformedEntryError
+from src import INIClassParser, ConfigEntry, ConfigParserError, MalformedEntryError
 import os
 from pathlib import Path
 

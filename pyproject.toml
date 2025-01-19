@@ -6,40 +6,31 @@ build-backend = "hatchling.build"
 name = "ini_class_parser"
 version = "0.1.0"
 authors = [
-  { name = "Your Name" },
+    { name = "Your Name", email = "your.email@example.com" },
 ]
-description = "INI Class Parser for configuration files"
+description = "Parser for class configuration INI files"
 readme = "README.md"
-requires-python = ">=3.7"
-dependencies = []
+requires-python = ">=3.10"
+dependencies = [
+    "configparser>=5.0.0",
+]
 
 [tool.hatch.build.targets.wheel]
 packages = ["ini_class_parser"]
 
 [project.optional-dependencies]
-test = [
-    "pytest>=6.0.0",
-    "pytest-cov>=2.0.0",
-]
 dev = [
-    "black>=22.0.0",
-    "flake8>=4.0.0",
-    "mypy>=0.900",
+    "black",
+    "flake8",
+    "mypy",
+]
+test = [
+    "pytest>=7.0.0",
+    "pytest-cov>=4.0.0",
 ]
 all = [
-    "ini_class_parser[test,dev]"
+    "ini_class_parser[dev,test]",
 ]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-python_files = ["test_*.py"]
-addopts = "-v --cov=ini_class_parser --cov-report=term-missing"
-filterwarnings = [
-    "ignore::DeprecationWarning",
-    "ignore::UserWarning",
-]
-
-[tool.black]
-line-length = 88
-target-version = ['py37']
-include = '\.pyi?$'
