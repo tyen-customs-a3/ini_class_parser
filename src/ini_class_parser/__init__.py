@@ -5,11 +5,14 @@ from .parser import (
     MalformedEntryError,
     ClassInfo
 )
+from .api import ClassHierarchyAPI
 
+__version__ = "0.1.0"
 __all__ = [
     'INIClassParser',
     'ConfigEntry',
     'ConfigParserError',
     'MalformedEntryError',
-    'ClassInfo'
+    'ClassInfo',
+    'ClassHierarchyAPI'
 ]
