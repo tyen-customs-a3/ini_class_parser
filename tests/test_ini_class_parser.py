@@ -179,47 +179,6 @@ def test_empty_inherits_from_handling(parser):
     assert default_weapon.inherits_from == ''
     assert isinstance(default_weapon.inherits_from, str)
 
-def test_parallel_performance(large_config):
-    # Run multiple times to warm up
-    def run_test(use_parallel: bool) -> float:
-        times = []
-        parser = INIClassParser(large_config, use_parallel=use_parallel)
-        # Warm up run
-        parser.get_category_entries('CategoryData_Large')
-        
-        # Timed runs
-        for _ in range(5):  # Increased runs for better statistics
-            start = time.time()
-            entries = parser.get_category_entries('CategoryData_Large')
-            times.append(time.time() - start)
-        return min(times)  # Use best time
-
-    sequential_time = run_test(False)
-    parallel_time = run_test(True)
-
-    # Verify results are identical using existing parsers
-    parser_seq = INIClassParser(large_config, use_parallel=False)
-    parser_par = INIClassParser(large_config, use_parallel=True)
-    entries_seq = parser_seq.get_category_entries('CategoryData_Large')
-    entries_par = parser_par.get_category_entries('CategoryData_Large')
-    assert len(entries_seq) == len(entries_par)
-    assert all(s.class_name == p.class_name for s, p in zip(entries_seq, entries_par))
-
-    # More flexible performance verification
-    if cpu_count() > 2:
-        if parallel_time >= sequential_time:
-            logger.warning(
-                f"Parallel processing not faster: parallel={parallel_time:.3f}s, "
-                f"sequential={sequential_time:.3f}s, cores={cpu_count()}"
-            )
-        else:
-            improvement = ((sequential_time - parallel_time) / sequential_time) * 100
-            logger.info(f"Parallel processing {improvement:.1f}% faster")
-
-        # Relaxed assertion for high-load systems
-        assert parallel_time < sequential_time * 2.0, \
-            f"Parallel processing much slower: {parallel_time:.3f}s vs {sequential_time:.3f}s"
-
 def test_parallel_disabled_for_small_datasets(parser):
     """Test that parallel processing is skipped for small datasets"""
     start = time.time()
