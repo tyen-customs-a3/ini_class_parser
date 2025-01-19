@@ -1,7 +1,19 @@
 import pytest
 from pathlib import Path
-from src.api import ClassHierarchyAPI
-from src.parser import INIClassParser, ConfigParserError
+import os
+from contextlib import contextmanager
+from ini_class_parser.parser import INIClassParser, ConfigParserError
+from ini_class_parser.api import ClassHierarchyAPI
+
+@contextmanager
+def cwd(path):
+    """Context manager for changing working directory"""
+    old_pwd = os.getcwd()
+    os.chdir(path)
+    try:
+        yield
+    finally:
+        os.chdir(old_pwd)
 
 def test_path_handling(tmp_path):
     # Create minimal valid config file
@@ -36,6 +48,8 @@ test="Test,Source,Cat,Parent,,false,10,1,model"
     
     # Test with relative path
     rel_path = config.relative_to(tmp_path)
-    with tmp_path.as_cwd():
+    with cwd(tmp_path):
         parser = INIClassParser(str(rel_path))
-        assert parser.get_categories() == ['CategoryData_Test']
+        entries = parser.get_category_entries('CategoryData_Test')
+        assert len(entries) == 1
+        assert entries[0].class_name == 'Test'

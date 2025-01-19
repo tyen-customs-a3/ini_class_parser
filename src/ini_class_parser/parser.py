@@ -18,8 +18,37 @@ class MalformedEntryError(ConfigParserError):
 
 @dataclass
 class ConfigEntry:
-    name: str
-    value: Any
+    class_name: str
+    source: str
+    category: str
+    parent: str
+    inherits_from: str
+    is_simple_object: bool
+    num_properties: int
+    scope: int
+    model: str
+    
+    @classmethod
+    def from_csv(cls, csv_string: str) -> 'ConfigEntry':
+        """Create ConfigEntry from CSV string."""
+        reader = csv.reader([csv_string.strip('"')])
+        try:
+            row = next(reader)
+            if len(row) != 9:
+                raise MalformedEntryError(f"Expected 9 fields, got {len(row)}")
+            return cls(
+                class_name=row[0],
+                source=row[1],
+                category=row[2],
+                parent=row[3],
+                inherits_from=row[4],
+                is_simple_object=row[5].lower() == 'true',
+                num_properties=int(row[6]),
+                scope=int(row[7]),
+                model=row[8]
+            )
+        except (StopIteration, ValueError) as e:
+            raise MalformedEntryError(f"Failed to parse entry: {e}")
 
 @dataclass
 class ClassInfo:
@@ -44,12 +73,23 @@ class INIClassParser:
 
     @staticmethod
     def _parse_entry(entry_data: tuple) -> tuple[Optional[ConfigEntry], Optional[str]]:
+        """Parse a single entry from the INI file.
+        
+        Returns:
+            Tuple of (ConfigEntry or None, error message or None)
+        """
         key, value = entry_data
         try:
             value = value.strip()
             if not value or value == '""':
                 return None, None
-            return ConfigEntry.from_csv(value)
+            entry = ConfigEntry.from_csv(value)
+            # Ensure empty strings for optional fields
+            entry.inherits_from = entry.inherits_from or ''
+            entry.model = entry.model or ''
+            return (entry, None)
+        except MalformedEntryError as e:
+            return None, f"Malformed entry {key}: {e}"
         except Exception as e:
             return None, f"Unexpected error in entry {key}: {e}"
 
@@ -82,13 +122,13 @@ class INIClassParser:
                 results = [self._parse_entry(entry) for entry in entries_to_process]
         
         entries = []
-        for entry, error in results:
-            if entry:
-                entry.inherits_from = entry.inherits_from or ''
-                entry.model = entry.model or ''
-                entries.append(entry)
-            if error:
-                errors.append(error)
+        for result in results:
+            if isinstance(result, tuple):
+                entry, error = result
+                if entry:
+                    entries.append(entry)
+                if error:
+                    errors.append(error)
         
         if errors:
             logger.warning(f"Errors in category {category}:\n" + "\n".join(errors))

@@ -1,6 +1,6 @@
 from multiprocessing import cpu_count
 import pytest
-from src import INIClassParser, ConfigEntry, ConfigParserError, MalformedEntryError
+from ini_class_parser import INIClassParser, ConfigEntry, ConfigParserError, MalformedEntryError
 import os
 from pathlib import Path
 import time
