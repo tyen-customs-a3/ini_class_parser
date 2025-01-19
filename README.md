@@ -1,163 +1,122 @@
 # INI Class Parser
 
-This module parses configuration extraction files and provides structured access to the data.
+A high-performance parser for extracting class hierarchy information from INI configuration files. Supports both sequential and parallel processing for large datasets.
+
+## Features
+
+- Fast parallel processing for large config files
+- Case-sensitive and case-insensitive class lookups
+- Memory-efficient caching of parsed data
+- Rich inheritance analysis tools
+- Support for both Path and string file paths
+- Comprehensive error handling and validation
 
 ## Installation
 
-### From Source
 ```bash
-# Install build dependencies
-pip install hatchling
-
-# Install in development mode
-pip install -e ".[dev]"
-```
-
-### As a Dependency
-Add to your `pyproject.toml`:
-```toml
-[project]
-dependencies = [
-    "ini_class_parser @ git+https://github.com/your-repo/ini_class_parser.git@v0.1.0",
-]
-```
-
-Or to your `requirements.txt`:
-```text
-ini_class_parser @ git+https://github.com/your-repo/ini_class_parser.git@v0.1.0
+pip install -e .
 ```
 
 ## Usage
 
-### Basic Parser Usage
-```python
-from ini_class_parser import INIClassParser
-
-# Initialize the parser
-parser = INIClassParser('/path/to/config.ini')
-
-# Get available categories
-categories = parser.get_categories()
-print(f"Categories: {categories}")
-# Output: ['CategoryData_CfgVehicles', 'CategoryData_CfgWeapons', ...]
-
-# Get structured data for a category
-entries = parser.get_category_entries('CategoryData_CfgVehicles')
-for entry in entries:
-    print(f"Class: {entry.class_name}")
-    print(f"Source: {entry.source}")
-    print(f"Category: {entry.category}")
-    print(f"Parent: {entry.parent}")
-    print(f"Inherits From: {entry.inherits_from}")
-    print(f"Is Simple Object: {entry.is_simple_object}")
-    print(f"Number of Properties: {entry.num_properties}")
-    print(f"Scope: {entry.scope}")
-    print(f"Model: {entry.model}")
-    print("---")
-
-# Example output:
-# Class: Car
-# Source: @em
-# Category: CategoryData_CfgVehicles
-# Parent: LandVehicle
-# Inherits From: LandVehicle
-# Is Simple Object: False
-# Number of Properties: 10
-# Scope: 2
-# Model: \A3\air_f_beta\Parachute_01\Parachute_01_F.p3d
-# ---
-
-# Get category header fields
-header = parser.get_category_header('CategoryData_CfgVehicles')
-print(f"Fields: {header}")
-# Output: ['ClassName', 'Source', 'Category', 'Parent', 'InheritsFrom', 'IsSimpleObject', 'NumProperties', 'Scope', 'Model']
-```
-
-### Working with Class Hierarchies
+### Basic Usage
 ```python
 from ini_class_parser import ClassHierarchyAPI
 
-api = ClassHierarchyAPI('/path/to/config.ini')
+# Initialize with automatic parallel processing
+api = ClassHierarchyAPI('config.ini')
 
-# Get inheritance path
+# Get available categories
+categories = api.get_available_categories()
+
+# Get information about a specific class
+class_info = api.get_class('CategoryData_CfgVehicles', 'Car')
+if class_info:
+    print(f"Source: {class_info.source_file}")
+    print(f"Parent: {class_info.parent_class}")
+```
+
+### Inheritance Analysis
+```python
+# Get complete inheritance path
 path = api.get_inheritance_path('CategoryData_CfgVehicles', 'Car')
-print(f"Inheritance path: {path}")
-# Output: ['Car', 'LandVehicle', 'Vehicle', 'AllVehicles']
-
-# Get children
-children = api.get_children('CategoryData_CfgVehicles', 'LandVehicle')
-print(f"Direct children: {children}")
-# Output: ['Car', 'Tank', 'Truck']
+print(f"Inheritance: {' -> '.join(path)}")
 
 # Find common ancestor
 ancestor = api.find_common_ancestor('CategoryData_CfgVehicles', 'Car', 'Tank')
 print(f"Common ancestor: {ancestor}")
-# Output: 'LandVehicle'
 
-# Check inheritance
+# Check inheritance relationship
 is_descendant = api.is_descendant_of('CategoryData_CfgVehicles', 'Car', 'Vehicle')
-print(f"Is Car a descendant of Vehicle? {is_descendant}")
-# Output: True
+print(f"Is descendant: {is_descendant}")
 ```
 
-### Working with Config Entries
+### Case-Insensitive Lookups
 ```python
-# Get all entries in a category
-entries = api.get_all_classes('CategoryData_CfgVehicles')
-for name, info in entries.items():
-    print(f"Class: {name}")
-    print(f"Source: {info.source_file}")
-    print(f"Parent: {info.parent_class}")
-    print(f"Properties: {info.properties}")
-    print("---")
+# Case-insensitive class lookup (default)
+info = api.get_class('CategoryData_CfgVehicles', 'CAR')
 
-# Example output:
-# Class: Car
-# Source: @em
-# Parent: LandVehicle
-# Properties: {'maxSpeed': '100', 'armor': '50', 'crew': '4'}
-# ---
+# Case-sensitive lookup when needed
+info = api.get_class('CategoryData_CfgVehicles', 'Car', case_sensitive=True)
+
+# Find which category contains a class
+category = api.find_class_category('Car', case_sensitive=False)
 ```
 
-## Data Format
+### Low-Level Parser Usage
+```python
+from ini_class_parser import INIClassParser
 
-The parser expects INI files with the following structure:
+# Initialize parser with parallel processing control
+parser = INIClassParser('config.ini', use_parallel=True, max_workers=4)
+
+# Get raw entries
+entries = parser.get_category_entries('CategoryData_CfgVehicles')
+for entry in entries:
+    print(f"{entry.class_name}: {entry.model}")
+
+# Access header information
+header = parser.get_category_header('CategoryData_CfgVehicles')
+```
+
+## Config File Format
+
+The parser expects INI files with this structure:
 
 ```ini
 [CategoryData_CfgVehicles]
 header="ClassName,Source,Category,Parent,InheritsFrom,IsSimpleObject,NumProperties,Scope,Model"
-0="Car,@em,CategoryData_CfgVehicles,LandVehicle,LandVehicle,false,10,2,\A3\air_f_beta\Parachute_01\Parachute_01_F.p3d"
-1="Tank,@em,CategoryData_CfgVehicles,LandVehicle,LandVehicle,false,15,2,\A3\armor_f_beta\Tank_01\Tank_01_F.p3d"
-
-[Validation]
-version=1.0
-timestamp=2024-01-01 12:00:00
+0="Car,@em,Vehicles,LandVehicle,LandVehicle,false,10,2,\model\car.p3d"
+1="Tank,@em,Vehicles,LandVehicle,LandVehicle,false,15,2,\model\tank.p3d"
 ```
 
 ## Development
 
-### Installation
-```bash
-# Install with all dependencies (development and testing)
-pip install -e ".[all]"
-
-# Or install specific groups
-pip install -e ".[test]"  # Just testing dependencies
-pip install -e ".[dev]"   # Just development tools
-```
-
 ### Running Tests
 ```bash
-# Ensure test dependencies are installed
-pip install -e ".[test]"
+# Run all tests
+pytest
 
 # Run tests with coverage
 pytest --cov=ini_class_parser
+
+# Run specific test files
+pytest tests/test_path_handling.py
+pytest tests/test_ini_class_parser.py
 ```
 
-### Code Style
-```bash
-black .
-flake8
-mypy src/ini_class_parser
-```
+### Performance Testing
+The test suite includes performance tests that verify:
+- Parallel processing efficiency
+- Processing consistency between parallel and sequential modes
+- Automatic parallel/sequential mode selection based on dataset size
+
+## Error Handling
+
+The library provides specific exceptions for common issues:
+- `ConfigParserError`: Base exception for parsing errors
+- `MalformedEntryError`: Raised when an entry cannot be parsed correctly
+
+## License
+
+This project is licensed under the MIT License.
