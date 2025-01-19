@@ -1,0 +1,45 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "ini_class_parser"
+version = "0.1.0"
+authors = [
+  { name = "Your Name" },
+]
+description = "INI Class Parser for configuration files"
+readme = "README.md"
+requires-python = ">=3.7"
+dependencies = []
+
+[tool.hatch.build.targets.wheel]
+packages = ["ini_class_parser"]
+
+[project.optional-dependencies]
+test = [
+    "pytest>=6.0.0",
+    "pytest-cov>=2.0.0",
+]
+dev = [
+    "black>=22.0.0",
+    "flake8>=4.0.0",
+    "mypy>=0.900",
+]
+all = [
+    "ini_class_parser[test,dev]"
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+addopts = "-v --cov=ini_class_parser --cov-report=term-missing"
+filterwarnings = [
+    "ignore::DeprecationWarning",
+    "ignore::UserWarning",
+]
+
+[tool.black]
+line-length = 88
+target-version = ['py37']
+include = '\.pyi?$'

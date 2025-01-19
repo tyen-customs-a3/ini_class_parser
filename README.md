@@ -6,15 +6,25 @@ This module parses configuration extraction files and provides structured access
 
 ### From Source
 ```bash
-git clone https://github.com/your-repo/ini_class_parser.git
-cd ini_class_parser
-pip install -e .[dev]  # Install with development dependencies
+# Install build dependencies
+pip install hatchling
+
+# Install in development mode
+pip install -e ".[dev]"
 ```
 
 ### As a Dependency
-Add to your `requirements.txt`:
+Add to your `pyproject.toml`:
+```toml
+[project]
+dependencies = [
+    "ini_class_parser @ git+https://github.com/your-repo/ini_class_parser.git@v0.1.0",
+]
+```
+
+Or to your `requirements.txt`:
 ```text
-git+https://github.com/your-repo/ini_class_parser.git@v0.1.0
+ini_class_parser @ git+https://github.com/your-repo/ini_class_parser.git@v0.1.0
 ```
 
 ## Usage
@@ -51,8 +61,22 @@ The parser expects INI files with the following structure:
 
 ## Development
 
+### Installation
+```bash
+# Install with all dependencies (development and testing)
+pip install -e ".[all]"
+
+# Or install specific groups
+pip install -e ".[test]"  # Just testing dependencies
+pip install -e ".[dev]"   # Just development tools
+```
+
 ### Running Tests
 ```bash
+# Ensure test dependencies are installed
+pip install -e ".[test]"
+
+# Run tests with coverage
 pytest --cov=ini_class_parser
 ```
 
