@@ -1,15 +1,16 @@
 # INI Class Parser
 
-A high-performance parser for extracting class hierarchy information from INI configuration files. Supports both sequential and parallel processing for large datasets.
+A high-performance parser for extracting and analyzing class hierarchy information from INI configuration files. Features parallel processing and efficient caching for large datasets.
 
 ## Features
 
-- Fast parallel processing for large config files
-- Case-sensitive and case-insensitive class lookups
-- Memory-efficient caching of parsed data
-- Rich inheritance analysis tools
-- Support for both Path and string file paths
-- Comprehensive error handling and validation
+- Multi-threaded analysis of large configurations
+- Smart caching with bulk operations
+- Deep inheritance analysis tools
+- Case-sensitive and case-insensitive lookups
+- Cycle detection in inheritance chains
+- Parallel batch processing
+- Progress tracking for long operations
 
 ## Installation
 
