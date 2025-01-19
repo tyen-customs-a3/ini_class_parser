@@ -1,3 +1,9 @@
+from ini_class_parser.parser import (
+    INIClassParser,
+    ConfigEntry,
+    ConfigParserError,
+    MalformedEntryError
+)
 import pytest
 import logging
 

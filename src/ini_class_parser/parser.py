@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import Dict, List, Optional, Set, Tuple
+from typing import Dict, List, Optional, Set, Tuple, Any
 import configparser
 import csv
 from io import StringIO
@@ -18,49 +18,16 @@ class MalformedEntryError(ConfigParserError):
 
 @dataclass
 class ConfigEntry:
-    class_name: str
-    source: str
-    category: str
-    parent: str
-    inherits_from: str
-    is_simple_object: bool
-    num_properties: int
-    scope: int
-    model: str
-
-    @classmethod
-    def from_csv(cls, line: str) -> Tuple['ConfigEntry', Optional[str]]:
-        try:
-            # Handle double-quoted values and strip them
-            line = line.strip('"')
-            reader = csv.reader(StringIO(line))
-            values = next(reader)
-            
-            if len(values) != 9:
-                raise MalformedEntryError(f"Expected 9 values, got {len(values)}")
-            
-            return cls(
-                class_name=values[0].strip(),
-                source=values[1].strip(),
-                category=values[2].strip(),
-                parent=values[3].strip(),
-                inherits_from=values[4].strip(),
-                is_simple_object=values[5].lower().strip() == 'true',
-                num_properties=int(values[6].strip()),
-                scope=int(values[7].strip()),
-                model=values[8].strip()
-            ), None
-        except (IndexError, ValueError) as e:
-            return None, str(e)
+    name: str
+    value: Any
 
 @dataclass
 class ClassInfo:
-    """Class to store information about a class definition"""
     name: str
     source_file: str
     properties: Dict[str, str]
     parent_class: Optional[str] = None
-    inherits_from: Optional[str] = None  # Add this field
+    inherits_from: Optional[str] = None
 
 class INIClassParser:
     def __init__(self, file_path: str, use_parallel: bool = True, max_workers: int = None):

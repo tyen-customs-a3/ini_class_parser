@@ -13,24 +13,18 @@ readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
     "configparser>=5.0.0",
-]
-
-[tool.hatch.build.targets.wheel]
-packages = ["ini_class_parser"]
-
-[project.optional-dependencies]
-dev = [
     "black",
     "flake8",
     "mypy",
-]
-test = [
     "pytest>=7.0.0",
     "pytest-cov>=4.0.0",
+    "pytest-sugar"  # Optional but helpful for better test output
 ]
-all = [
-    "ini_class_parser[dev,test]",
-]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/ini_class_parser"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+pythonpath = ["src"]
+addopts = "--import-mode=importlib"
