@@ -1,3 +1,4 @@
+import logging
 from typing import Dict, List, Optional, Set
 from pathlib import Path
 from .parser import INIClassParser, ClassInfo
@@ -5,12 +6,18 @@ from .parser import INIClassParser, ClassInfo
 class ClassHierarchyAPI:
     def __init__(self, config_path: str | Path):
         self._parser = INIClassParser(str(config_path))
-        # Pre-cache all entries
         self._class_cache: Dict[str, Dict[str, ClassInfo]] = {}
+        self._logger = logging.getLogger(__name__)
+        
+        # Pre-cache all entries with error handling
         for category in self._parser.get_categories():
-            classes = self._parser.get_all_classes(category)
-            if classes:
-                self._class_cache[category] = classes
+            try:
+                classes = self._parser.get_all_classes(category)
+                if classes:
+                    self._class_cache[category] = classes
+            except RecursionError as e:
+                self._logger.error(f"Recursion detected while caching category {category}: {e}")
+                self._class_cache[category] = {}
 
     def get_all_classes(self, category: str) -> Dict[str, ClassInfo]:
         """Get all classes with caching"""
@@ -39,8 +46,16 @@ class ClassHierarchyAPI:
         return self._parser.get_all_descendants(category, class_name)
 
     def get_inheritance_path(self, category: str, class_name: str) -> List[str]:
-        """Get inheritance path, empty list for non-existent classes"""
-        return self._parser._cache.get_inheritance_path(category, class_name)
+        """Get inheritance path with recursion protection."""
+        # First check if class exists
+        if not self.has_class(category, class_name):
+            return []
+            
+        try:
+            return self._parser._cache.get_inheritance_path(category, class_name)
+        except RecursionError as e:
+            self._logger.error(f"Recursion detected in inheritance path for {category}.{class_name}: {e}")
+            return []  # Return empty list on error instead of [class_name]
 
     def find_common_ancestor(self, category: str, class1: str, class2: str) -> Optional[str]:
         """Find closest common ancestor of two classes"""
@@ -72,3 +87,11 @@ class ClassHierarchyAPI:
     def get_available_categories(self) -> List[str]:
         """Get list of all available categories"""
         return self._parser.get_categories()
+
+    def get_inheritance_paths_bulk(self, category: str, class_names: List[str]) -> Dict[str, List[str]]:
+        """Get inheritance paths for multiple classes efficiently."""
+        return self._parser._cache.get_inheritance_paths_bulk(category, class_names)
+    
+    def get_children_bulk(self, category: str, class_names: List[str]) -> Dict[str, List[str]]:
+        """Get children for multiple classes efficiently."""
+        return self._parser._cache.get_children_bulk(category, class_names)

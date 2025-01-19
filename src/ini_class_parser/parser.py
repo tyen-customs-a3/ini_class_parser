@@ -6,6 +6,7 @@ import logging
 from multiprocessing import Pool, cpu_count
 from .types import ConfigEntry, ClassInfo, ConfigParserError, MalformedEntryError
 from .cache import CacheManager
+from collections import defaultdict
 
 logger = logging.getLogger(__name__)
 
@@ -30,26 +31,68 @@ class INIClassParser:
                     continue
         except (configparser.Error, OSError) as e:
             raise ConfigParserError(f"Error parsing config: {e}")
+        self._parse_file()
+
+    def _parse_file(self) -> None:
+        """Parse the INI file format with numbered entries."""
+        category_entries = defaultdict(list)
+        
+        for section in self.config.sections():
+            if not section.startswith('CategoryData_'):
+                continue
+                
+            # Skip processing if only header exists
+            if len(self.config[section]) <= 1 and 'header' in self.config[section]:
+                continue
+            
+            # Process numbered entries
+            for key in sorted(self.config[section].keys()):
+                if key == 'header':
+                    continue
+                    
+                try:
+                    # Handle double-quoted values
+                    value = self.config[section][key].strip('"')
+                    if not value:
+                        continue
+                        
+                    entry = ConfigEntry.from_csv(value)
+                    category_entries[section].append(entry)
+                except MalformedEntryError as e:
+                    if "Skipping header row" in str(e):
+                        continue  # Silently skip headers
+                    logger.warning(f"Skipping malformed entry in {section} #{key}: {e}")
+
+        # Bulk add entries for each category
+        for category, entries in category_entries.items():
+            if entries:  # Only process categories with actual entries
+                self._cache.bulk_add_entries(category, entries)
+                
+                # Pre-compute paths and descendants for large categories
+                if len(entries) > 100:
+                    self._cache.precompute_all_paths(category)
+                    self._cache.compute_descendants_bulk(category)
 
     @staticmethod
     def _parse_entry(entry_data: tuple) -> tuple[Optional[ConfigEntry], Optional[str]]:
-        """Parse a single entry from the INI file.
-        
-        Returns:
-            Tuple of (ConfigEntry or None, error message or None)
-        """
+        """Parse a single entry from the INI file."""
         key, value = entry_data
         try:
             value = value.strip()
             if not value or value == '""':
                 return None, None
-            entry = ConfigEntry.from_csv(value)
-            # Ensure empty strings for optional fields
-            entry.inherits_from = entry.inherits_from or ''
-            entry.model = entry.model or ''
-            return (entry, None)
-        except MalformedEntryError as e:
-            return None, f"Malformed entry {key}: {e}"
+                
+            try:
+                entry = ConfigEntry.from_csv(value)
+                # Ensure empty strings for optional fields
+                entry.inherits_from = entry.inherits_from or ''
+                entry.model = entry.model or ''
+                return (entry, None)
+            except MalformedEntryError as e:
+                if "Skipping header row" in str(e):
+                    return None, None  # Silently skip header rows
+                return None, f"Skipping entry {key}: {e}"
+                
         except Exception as e:
             return None, f"Unexpected error in entry {key}: {e}"
 
@@ -59,6 +102,7 @@ class INIClassParser:
             return pool.map(self._parse_entry, entries_to_process, chunksize=chunk_size)
 
     def get_category_entries(self, category: str) -> List[ConfigEntry]:
+        """Get entries for a category, handling the numbered format."""
         if category not in self.config:
             return []
 
@@ -67,43 +111,32 @@ class INIClassParser:
         if cache.entries:
             return sorted(cache.entries.values(), key=lambda x: x.class_name)
 
-        section = self.config[category]
-        errors = []
-        
-        # Skip empty sections
-        if len(section) <= 1 and 'header' in section:
-            return []
-        
-        # Filter out header and prepare entries for processing
-        entries_to_process = [(k, v) for k, v in section.items() if k != 'header']
-        
-        if not self.use_parallel or len(entries_to_process) < self.parallel_threshold:
-            results = [self._parse_entry(entry) for entry in entries_to_process]
-        else:
-            try:
-                results = self._process_entries_parallel(entries_to_process)
-            except Exception as e:
-                logger.warning(f"Parallel processing failed, falling back to sequential: {e}")
-                results = [self._parse_entry(entry) for entry in entries_to_process]
-        
         entries = []
-        for result in results:
-            if isinstance(result, tuple):
-                entry, error = result
-                if entry:
-                    entries.append(entry)
-                if error:
-                    errors.append(error)
+        section = self.config[category]
+        
+        # Process numbered entries
+        for key in sorted(section.keys()):
+            if key == 'header':
+                continue
+                
+            try:
+                value = section[key].strip('"')
+                if not value:
+                    continue
+                    
+                entry = ConfigEntry.from_csv(value)
+                entries.append(entry)
+            except MalformedEntryError as e:
+                if not "Skipping header row" in str(e):
+                    logger.warning(f"Skipping entry {category}#{key}: {e}")
 
-        # Cache the results
-        for entry in entries:
-            self._cache.add_entry(category, entry)
-            if entry.inherits_from:
-                self._cache.add_child(category, entry.inherits_from, entry.class_name)
-        
-        if errors:
-            logger.warning(f"Errors in category {category}:\n" + "\n".join(errors))
-        
+        # Cache results
+        if entries:
+            for entry in entries:
+                self._cache.add_entry(category, entry)
+                if entry.inherits_from:
+                    self._cache.add_child(category, entry.inherits_from, entry.class_name)
+
         return sorted(entries, key=lambda x: x.class_name)
 
     def get_categories(self) -> List[str]:
