@@ -30,4 +30,6 @@ local_scheme = "node-and-date"
 
 [project]
 name = "ini_class_parser"
+description = "A parser for Arma 3 config/class files"
+requires-python = ">=3.8"
 dynamic = ["version"]
