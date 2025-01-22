@@ -27,9 +27,19 @@ exclude_lines = [
 write_to = "src/ini_class_parser/_version.py"
 version_scheme = "semver"
 local_scheme = "node-and-date"
+fallback_version = "0.1.0.dev0"
 
 [project]
 name = "ini_class_parser"
 description = "A parser for Arma 3 config/class files"
 requires-python = ">=3.8"
 dynamic = ["version"]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=6.2.2",
+    "pytest-cov",
+    "setuptools>=45",
+    "wheel",
+    "setuptools_scm>=6.2"
+]
