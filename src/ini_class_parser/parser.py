@@ -18,19 +18,38 @@ class INIClassParser:
         self.parallel_threshold = 1000  # Increased threshold for better performance
         self.config = configparser.ConfigParser(strict=True)
         self._cache = CacheManager()
+        
+        # Ordered list of encodings to try
+        encodings = [
+            ('utf-8-sig', 'replace'),  # UTF-8 with BOM
+            ('utf-8', 'replace'),      # UTF-8
+            ('cp1252', 'replace'),     # Windows-1252
+            ('latin1', 'replace'),     # Latin-1
+            ('ascii', 'replace')       # ASCII (fallback)
+        ]
+        
+        content = None
+        last_error = None
+        
+        for encoding, errors in encodings:
+            try:
+                with open(file_path, 'r', encoding=encoding, errors=errors) as f:
+                    content = f.read()
+                    break
+            except Exception as e:
+                last_error = e
+                continue
+                
+        if content is None:
+            raise ConfigParserError(f"Could not read file with any supported encoding: {file_path}. Last error: {last_error}")
+            
         try:
-            # Try UTF-8 first, then fallback to other encodings
-            for encoding in ['utf-8', 'utf-8-sig', 'latin1', 'cp1252']:
-                try:
-                    with open(file_path, 'r', encoding=encoding) as f:
-                        self.config.read_file(f)
-                        break
-                except UnicodeDecodeError:
-                    if encoding == 'cp1252':  # Last attempt failed
-                        raise ConfigParserError(f"Could not decode file with any supported encoding: {file_path}")
-                    continue
-        except (configparser.Error, OSError) as e:
+            # Normalize line endings
+            content = content.replace('\r\n', '\n').replace('\r', '\n')
+            self.config.read_string(content)
+        except configparser.Error as e:
             raise ConfigParserError(f"Error parsing config: {e}")
+            
         self._parse_file()
 
     def _parse_file(self) -> None:
@@ -84,17 +103,18 @@ class INIClassParser:
                 
             try:
                 entry = ConfigEntry.from_csv(value)
-                # Ensure empty strings for optional fields
-                entry.inherits_from = entry.inherits_from or ''
-                entry.model = entry.model or ''
                 return (entry, None)
             except MalformedEntryError as e:
                 if "Skipping header row" in str(e):
-                    return None, None  # Silently skip header rows
-                return None, f"Skipping entry {key}: {e}"
+                    return None, None
+                # Log warning but continue processing
+                logger.warning(f"Issue parsing entry {key}: {e}")
+                return None, None
                 
         except Exception as e:
-            return None, f"Unexpected error in entry {key}: {e}"
+            # Log error but don't fail
+            logger.error(f"Error processing entry {key}: {e}")
+            return None, None
 
     def _process_entries_parallel(self, entries_to_process: list) -> list:
         chunk_size = max(250, len(entries_to_process) // (self.max_workers * 2))

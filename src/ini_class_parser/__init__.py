@@ -1,18 +1,13 @@
-from .types import (
-    ConfigEntry,
-    ClassInfo,
-    ConfigParserError,
-    MalformedEntryError,
-)
-from .parser import INIClassParser
-from .api import ClassHierarchyAPI
+"""INI Class Parser package."""
+from .parser import INIClassParser, ConfigEntry, ConfigParserError, MalformedEntryError
+from .api import ClassHierarchyAPI, ClassInfo
 
 __version__ = "0.1.0"
 __all__ = [
+    'INIClassParser',
     'ConfigEntry',
-    'ClassInfo',
     'ConfigParserError',
     'MalformedEntryError',
-    'INIClassParser',
     'ClassHierarchyAPI',
+    'ClassInfo'
 ]
