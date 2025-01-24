@@ -148,3 +148,18 @@ def test_case_insensitive_find_category(api):
     # Case-sensitive lookup should only find exact match
     assert api.find_class_category('CAR', case_sensitive=True) is None
     assert api.find_class_category('Car', case_sensitive=True) == 'CategoryData_CfgVehicles'
+
+SAMPLE_CONFIG = Path(__file__).parent.parent / 'sample_data' / 'config.ini'
+
+def test_api_initialization():
+    api = ClassHierarchyAPI(SAMPLE_CONFIG)
+    assert api is not None
+
+def test_get_class_with_invalid_chars():
+    api = ClassHierarchyAPI(SAMPLE_CONFIG)
+    
+    # Test case-insensitive lookup
+    cls = api.get_class('CategoryData_CfgWeapons', 'RKSL_optic_EOT552', case_sensitive=False)
+    assert cls is not None
+    assert '?' not in cls.properties['model']
+    assert all(ord(c) < 128 for c in cls.properties['model'])

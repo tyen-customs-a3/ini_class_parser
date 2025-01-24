@@ -196,3 +196,127 @@ def test_parallel_disabled_for_small_datasets(parser):
     
     # Times should be similar as parallel processing should be skipped
     assert abs(processing_time - parallel_time) < 0.1  # Allow 100ms variance
+
+def test_complete_ini_parsing(parser):
+    """Test that all items from the ini file are properly parsed."""
+    # Known totals from the sample config.ini
+    expected_counts = {
+        'CategoryData_ForcedMissionDifficultyArgo': 1,
+        'CategoryData_MonetizedServers': 0,
+        'CategoryData_OfficialServersArma': 0,
+        'CategoryData_OfficialServersArgo': 0,
+        'CategoryData_SteamManagerConfig': 11,
+        'CategoryData_ScrollBar': 0,
+        'CategoryData_CfgMods': 24,
+        'CategoryData_CfgVehicles': 50,
+        'CategoryData_CfgWeapons': 19
+    }
+    
+    # Test each category
+    for category, expected_count in expected_counts.items():
+        entries = parser.get_category_entries(category)
+        assert len(entries) == expected_count, f"Category {category} has {len(entries)} entries, expected {expected_count}"
+        
+        # Verify each entry has all required attributes
+        if entries:
+            for entry in entries:
+                assert hasattr(entry, 'class_name')
+                assert hasattr(entry, 'source')
+                assert hasattr(entry, 'category')
+                assert hasattr(entry, 'parent')
+                assert hasattr(entry, 'inherits_from')
+                assert hasattr(entry, 'is_simple_object')
+                assert hasattr(entry, 'num_properties')
+                assert hasattr(entry, 'scope')
+                assert hasattr(entry, 'model')
+                
+                # Check that string fields are not None
+                assert entry.class_name is not None
+                assert entry.source is not None
+                assert entry.category is not None
+                assert entry.parent is not None
+                assert entry.inherits_from is not None
+                assert entry.model is not None
+                
+                # Verify boolean and numeric fields
+                assert isinstance(entry.is_simple_object, bool)
+                assert isinstance(entry.num_properties, int)
+                assert isinstance(entry.scope, int)
+                
+                # Basic value validation
+                assert entry.num_properties >= 0
+                assert entry.scope >= 0
+                assert len(entry.class_name) > 0
+
+def test_comprehensive_ini_validation(parser, config_path):
+    """
+    Comprehensively validate that every entry in the INI file is properly parsed
+    by manually reading the file and comparing against parsed results.
+    """
+    # Manually parse the INI file to get raw class names
+    manual_counts = {}
+    manual_class_names = {}
+    current_section = None
+    
+    encodings = ['utf-8-sig', 'utf-8', 'cp1252', 'latin1', 'ascii']
+    content = None
+    
+    for encoding in encodings:
+        try:
+            with open(config_path, 'r', encoding=encoding, errors='replace') as f:
+                content = f.readlines()
+                break
+        except Exception:
+            continue
+            
+    assert content is not None, f"Could not read file with any supported encoding: {config_path}"
+    
+    for line in content:
+        line = line.strip()
+        if line.startswith('[') and line.endswith(']'):
+            current_section = line[1:-1]
+            manual_counts[current_section] = 0
+            manual_class_names[current_section] = set()
+        elif line and current_section and not line.startswith('header'):
+            if '=' in line:
+                # Extract class name from the value (first element after split)
+                try:
+                    value = line.split('=', 1)[1].strip('" ')
+                    if value:  # Skip empty lines
+                        class_name = value.split(',')[0]
+                        manual_counts[current_section] += 1
+                        manual_class_names[current_section].add(class_name)
+                except IndexError:
+                    continue
+
+    # Compare against parser results
+    for category in parser.get_categories():
+        entries = parser.get_category_entries(category)
+        parsed_class_names = {entry.class_name for entry in entries}
+        
+        # Verify counts match
+        assert len(entries) == manual_counts[category], \
+            f"Count mismatch in {category}: parser found {len(entries)}, actual {manual_counts[category]}"
+        
+        # Verify every manually found class name exists in parsed results
+        for class_name in manual_class_names[category]:
+            assert class_name in parsed_class_names, \
+                f"Class {class_name} from {category} not found in parsed results"
+        
+        # Verify every parsed class name exists in manual results
+        for class_name in parsed_class_names:
+            assert class_name in manual_class_names[category], \
+                f"Parser found unexpected class {class_name} in {category}"
+        
+        # Verify no entry was lost or duplicated
+        assert len(parsed_class_names) == len(manual_class_names[category]), \
+            f"Size mismatch in {category}: parser {len(parsed_class_names)}, actual {len(manual_class_names[category])}"
+        
+        # If there are entries, verify their contents
+        for entry in entries:
+            assert entry.class_name, "Found entry with empty class_name"
+            assert hasattr(entry, 'source'), f"Missing source for {entry.class_name}"
+            assert hasattr(entry, 'category'), f"Missing category for {entry.class_name}"
+            assert hasattr(entry, 'num_properties'), f"Missing num_properties for {entry.class_name}"
+            assert isinstance(entry.num_properties, int), f"Invalid num_properties type for {entry.class_name}"
+            assert entry.num_properties >= 0, f"Negative num_properties for {entry.class_name}"
